@@ -1,111 +1,70 @@
+import { pool } from "../config/postgres.js"
+import fs from 'fs';
+import csv from 'csv-parser';
+import { env } from "../config/env.js";
+import { AcademicTranscripts } from "../models/transcripts.js";
 
-import fs from "fs";
-import path from "path";
-import csv from "csv-parser";
-import { pg } from "../config/postgres.js";
-import { httpError } from "../utils/httpError.js";
+export async function queryTables() {
+    const client = await pool.connect()
+    try {
+        await client.query('BEGIN')
 
-function absPath(p) {
-// corre desde raíz del proyecto
-return path.isAbsolute(p) ? p : path.join(process.cwd(), p);
-}
+        //create table 
+        await client.query(`
+        CREATE TABLE IF NOT EXISTS "customers" (
+    "customer_email" TEXT PRIMARY KEY,
+    "customer_name" TEXT,
+    "customer_address" TEXT,
+    "customer_phone" TEXT
+    );
+            `)
 
-export async function loadCsvToDb(filePath) {
-const full = absPath(filePath);
-if (!fs.existsSync(full)) throw httpError(404, `No existe el archivo: ${filePath}`);
+        //create table suppliers
+        await client.query(`
+        CREATE TABLE IF NOT EXISTS "suppliers" (
+    "supplier_email" TEXT PRIMARY KEY,
+    "supplier_name" TEXT
+    );
+                `)
 
-const rows = await new Promise((resolve, reject) => {
-const out = [];
-fs.createReadStream(full)
-.pipe(csv())
-.on("data", (r) => out.push(r))
-.on("end", () => resolve(out))
-.on("error", reject);
-});
-
-let customersUpserted = 0;
-let productsUpserted = 0;
-let suppliersUpserted = 0;
-let linesInserted = 0;
-
-await pg.query("BEGIN");
-
-try {
-for (const r of rows) {
-// Customers
-await pg.query(
-`INSERT INTO customers (customer_email, customer_name, customer_address, customer_phone)
-VALUES ($1,$2,$3,$4)
-ON CONFLICT (customer_email) DO UPDATE
-SET customer_name=EXCLUDED.customer_name,
-customer_address=EXCLUDED.customer_address,
-customer_phone=EXCLUDED.customer_phone`,
-[r.customer_email, r.customer_name, r.customer_address, String(r.customer_phone || "")]
+        //create table products
+        await client.query(`    
+        CREATE TABLE IF NOT EXISTS "products" (
+    "product_sku" TEXT PRIMARY KEY,
+    "product_name" TEXT,
+    "product_category" TEXT,
+    "unit_price" NUMERIC,
+    "supplier_email" TEXT
 );
-customersUpserted++;
+            `)
 
-// Suppliers
-await pg.query(
-`INSERT INTO suppliers (supplier_email, supplier_name)
-VALUES ($1,$2)
-ON CONFLICT (supplier_email) DO UPDATE
-SET supplier_name=EXCLUDED.supplier_name`,
-[r.supplier_email, r.supplier_name]
+
+        //create table transaction lines
+        await client.query(`
+        CREATE TABLE IF NOT EXISTS "transaction_lines" (
+    "transaction_id" SERIAL PRIMARY KEY,
+    "customer_email" TEXT,
+    "product_sku" TEXT,
+    "quantity" INTEGER,
+    "date" DATE
 );
-suppliersUpserted++;
+            `)
 
-// Products
-await pg.query(
-`INSERT INTO products (product_sku, product_name, product_category, unit_price, supplier_email)
-VALUES ($1,$2,$3,$4,$5)
-ON CONFLICT (product_sku) DO UPDATE
-SET product_name=EXCLUDED.product_name,
-product_category=EXCLUDED.product_category,
-unit_price=EXCLUDED.unit_price,
-supplier_email=EXCLUDED.supplier_email`,
-[r.product_sku, r.product_name, r.product_category, Number(r.unit_price), r.supplier_email]
+        //create indexes    
+
+        await client.query(`
+    CREATE INDEX IF NOT EXISTS "idx_txn_lines_txn" ON "transaction_lines"("transaction_id");
+    CREATE INDEX IF NOT EXISTS "idx_txn_lines_date" ON "transaction_lines"("date");
+    CREATE INDEX IF NOT EXISTS "idx_txn_lines_product" ON "transaction_lines"("product_sku"); `)
 );
-productsUpserted++;
+            `)
 
-// Transaction lines (una fila del CSV = una línea)
-await pg.query(
-`INSERT INTO transaction_lines
-(transaction_id, date, customer_email, product_sku, quantity, total_line_value)
-VALUES ($1,$2,$3,$4,$5,$6)`,
-[
-r.transaction_id,
-r.date, // si te llega como string, en postgres igual funciona si es YYYY-MM-DD
-r.customer_email,
-r.product_sku,
-Number(r.quantity),
-Number(r.total_line_value)
-]
-);
-linesInserted++;
+        await client.query("COMMIT");
+        return { rows: rows.length, customersUpserted, suppliersUpserted, productsUpserted, linesInserted };
+    } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+    } finally {
+        client.release();
+    }
 }
-
-await pg.query("COMMIT");
-return { rows: rows.length, customersUpserted, suppliersUpserted, productsUpserted, linesInserted };
-} catch (e) {
-await pg.query("ROLLBACK");
-throw e;
-}
-}
-
-Routes/ Simulacro.js 
-
-import { Router } from "express";
-import * as migrationService from "../services/migrationService.js";
-
-const router = Router();
-
-router.post("/load", async (req, res, next) => {
-try {
-// opcional: permitir { filePath } en body; si no, usar default
-const filePath = req.body?.filePath || "data/simulation_vistaestudio_data.csv";
-const result = await migrationService.loadCsvToDb(filePath);
-res.json(result);
-} catch (e) { next(e); }
-});
-
-export default router;
