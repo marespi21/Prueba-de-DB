@@ -1,15 +1,15 @@
 import { Router } from "express";
-import { getCourses, getCoursesByCode, updateCourseByCode } from "../services/coursesServices.js";
+import { getCustomer, getCustomerByCode, updateCustomerByCode } from "../services/customerServices.js";
 
 const router = Router();
 
 router.get('/', async (req, res) => {
     try {
-        const courses = await getCourses()
+        const customers = await getCustomer()
         res.status(200).json(
             {
-                message: 'Courses get successfully',
-                courses
+                message: 'Customers get successfully',
+                customers
             }
         )
     } catch (error) {
@@ -17,18 +17,17 @@ router.get('/', async (req, res) => {
     }
 })
 
-
 router.get('/:code', async (req, res) => {
     const { code } = req.params
     try {
-        const course = await getCoursesByCode(code)
-        if (!course) {
-            return res.status(404).json({message : "Course not found"})
+        const customer = await getCustomerByCode(code)
+        if (!customer) {
+            return res.status(404).json({message : "Customer not found"})
         }
         res.status(200).json(
             {
-                message: 'Course get successfully',
-                course
+                message: 'Customer get successfully',
+                customer
             }
         )
     } catch (error) {
@@ -38,8 +37,8 @@ router.get('/:code', async (req, res) => {
 
 router.patch('/:code', async (req, res) =>{
     const { code } = req.params
-    await updateCourseByCode(req.body, code)
-    res.status(200).json({message: "Course updated"})
+    await updateCustomerByCode(req.body, code)
+    res.status(200).json({message: "Customer updated"})
 })
 
 export default router

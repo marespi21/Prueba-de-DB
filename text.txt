@@ -6,6 +6,7 @@ sudo docker run -d \
   -e POSTGRES_DB=LOGITECH_SOLUTIONS \
   -p 5422:5432 \
   postgres
+  
 
 docker run -d \
 --name LOGITECH_SOLUTIONS \

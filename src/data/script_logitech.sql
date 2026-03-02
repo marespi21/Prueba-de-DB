@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS "customers" (
-    "customer_email" TEXT PRIMARY KEY,
+    "customer_id" TEXT PRIMARY KEY,
     "customer_name" TEXT,
+    "customer_email" TEXT,	
     "customer_address" TEXT,
     "customer_phone" TEXT
     );
