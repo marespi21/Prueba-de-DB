@@ -2,13 +2,11 @@ import mongoose from "mongoose";
 
 const costumerschema = mongoose.Schema(
     {
-        "courseCode": String,
-        "courseName": String,
-        "credits": Number,
-        "semester": String,
-        "professorName": String,
-        "grade": Number,
-        "status": String
+        "costumerId": Number,
+        "costumerName": String,
+        "costumerEmail": String,
+        "costumerPhone": Number,
+
     }, { _id: false }
 )
 
