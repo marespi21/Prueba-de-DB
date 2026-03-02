@@ -1,0 +1,18 @@
+{
+  "name": "prueba-de-db",
+  "version": "1.0.0",
+  "description": "1. Introducción Te has unido al equipo de ingeniería de LogiTech Solutions, una consultora especializada en modernización de sistemas para retail y comercio electrónico. Uno de sus clientes más grandes, el gigante de suministros \"MegaStore Global\", enfrenta una crisis operativa. Durante años, han manejado todo su inventario, ventas, proveedores y clientes en un único archivo maestro de Excel. El volumen de datos ha crecido tanto que el archivo es inmanejable: hay inconsistencias en los precios, direcciones de clientes duplicadas con errores ortográficos y es imposible saber el stock real en tiempo real. Tu misión: Actuar como Arquitecto de Datos y Desarrollador Backend para migrar este \"sistema legado\" a una arquitectura moderna, escalable y persistente, exponiendo la información a través de una API REST.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node ./src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "pg": "^8.19.0"
+  }
+}
