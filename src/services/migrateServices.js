@@ -1,8 +1,9 @@
 import { pool } from "../config/postgres.js"
-import fs from 'fs';
-import csv from 'csv-parser';
+import { parse}  from 'csv-parse/sync';
 import { env } from "../config/env.js";
-import { AcademicTranscripts } from "../models/transcripts.js";
+import { resolve } from "path";
+import { readFile } from "fs/promises";
+import { migration } from "../config/postgres.js";
 
 export async function queryTables() {
     const client = await pool.connect()
@@ -81,98 +82,85 @@ export async function queryTables() {
 }
 }
 
-export async function migrateData() {
+export async function migration(clearBefore = false) {
     const client = await pool.connect()
+
     try {
-        await client.query('BEGIN')
+        console.log('Starting migration process...');
 
-        const customersData = []
-        const suppliersData = []
-        const productsData = []
-        const transactionsData = []
-        const transactionDetailsData = []
+        const csv = await readFile(resolve.fileDataCsv, "utf-8");
 
-        fs.createReadStream(env.csvPath)
-            .pipe(csv())
-            .on('data', (row) => {
-                customersData.push({ //.push() para añadir uno o más elementos al final de un array existente, modificando longitud  y devolviendo nuevo tamaño del array. 
-                    customer_email: row.customer_email,
-                    customer_name: row.customer_name,
-                    customer_address: row.customer_address,
-                    customer_phone: row.customer_phone
-                })
-                suppliersData.push({
-                    supplier_email: row.supplier_email,
-                    supplier_name: row.supplier_name
-                })
-                productsData.push({
-                    product_sku: row.product_sku,
-                    product_name: row.product_name,
-                    product_category: row.product_category,
-                    unit_price: row.unit_price,
-                    supplier_email: row.supplier_email
-                })
-                transactionsData.push({
-                    date: row.date,
-                    customer_id: row.customer_email,
-                    total_line_value: row.total_line_value
-                })
-                transactionDetailsData.push({
-                    product_sku: row.product_sku,
-                    quantity: row.quantity,
-                    supplier_id: row.supplier_email
-                })
-            })
-            .on('end', async () => {
-                console.log('CSV file successfully processed');
-                // Insert data into tables
-                for (const customer of customersData) {
-                    await client.query(`
-                        INSERT INTO customers (customer_email, customer_name, customer_address, customer_phone)
-                        VALUES ($1, $2, $3, $4)
-                        ON CONFLICT (customer_email) DO NOTHING
-                    `, [customer.customer_email, customer.customer_name, customer.customer_address, customer.customer_phone])
-                }
-                for (const supplier of suppliersData) {
-                    await client.query(`
-                        INSERT INTO suppliers (supplier_email, supplier_name)
-                        VALUES ($1, $2)
-                        ON CONFLICT (supplier_email) DO NOTHING
-                    `, [supplier.supplier_email, supplier.supplier_name])
-                }
-                for (const product of productsData) {
-                    await client.query(`
-                        INSERT INTO products (product_sku, product_name, product_category, unit_price, supplier_email)
-                        VALUES ($1, $2, $3, $4, $5)
-                        ON CONFLICT (product_sku) DO NOTHING
-                    `, [product.product_sku, product.product_name, product.product_category, product.unit_price, product.supplier_email])
-                }
-                for (const transaction of transactionsData) {
-                    const res = await client.query(`
-                        INSERT INTO transaction (date, customer_id, total_line_value)
-                        VALUES ($1, $2, $3)
-                        RETURNING transaction_id
-                    `, [transaction.date, transaction.customer_id, transaction.total_line_value])
-                    const transactionId = res.rows[0].transaction_id
-                    for (const detail of transactionDetailsData) {
-                        await client.query(`
-                            INSERT INTO transaction_details (transaction_id, product_sku, quantity, supplier_id)
-                            VALUES ($1, $2, $3, $4)
-                        `, [transactionId, detail.product_sku, detail.quantity, detail.supplier_id])
-                    }
-                }
-                await client.query("COMMIT");
-                console.log('Data migration completed successfully');
-            })
-            .on('error', (error) => {
-                console.error('Error processing CSV file:', error);
-                client.query("ROLLBACK");
-            });
-    } catch (error) {
-        console.log(error);
-        await client.query("ROLLBACK");
-        throw error;
-    } finally {
-        client.release()
-    }
-}   
+        const rows = parse(csv, {
+            columns: true,
+            trim: true,
+            skip_empty_lines: true
+        });
+
+        let customersUpserted = 0;
+        let suppliersUpserted = 0;
+        let productsUpserted = 0;
+        let linesInserted = 0;
+
+        for (const row of rows) {
+            const { customer_id, customer_name, customer_email, customer_address, customer_phone, supplier_name, supplier_email, product_sku, product_name, product_category, unit_price, date, quantity } = row;
+
+            // Upsert customer
+            await client.query(`
+                INSERT INTO customers (customer_id, customer_name, customer_email, customer_address, customer_phone)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (customer_id) DO UPDATE SET
+                    customer_name = EXCLUDED.customer_name,
+                    customer_email = EXCLUDED.customer_email,
+                    customer_address = EXCLUDED.customer_address,
+                    customer_phone = EXCLUDED.customer_phone;
+            `, [customer_id, customer_name, customer_email, customer_address, customer_phone]);
+            customersUpserted++;
+
+            // Upsert supplier
+            await client.query(`
+                INSERT INTO suppliers (supplier_name, supplier_email)
+                VALUES ($1, $2)
+                ON CONFLICT (supplier_email) DO UPDATE SET
+                    supplier_name = EXCLUDED.supplier_name;
+            `, [supplier_name, supplier_email]);
+            suppliersUpserted++;
+
+            // Upsert product
+            await client.query(`
+                INSERT INTO products (product_sku, product_name, product_category, unit_price, supplier_email)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (product_sku) DO UPDATE SET
+                    product_name = EXCLUDED.product_name,
+                    product_category = EXCLUDED.product_category,
+                    unit_price = EXCLUDED.unit_price,
+                    supplier_email = EXCLUDED.supplier_email;
+            `, [product_sku, product_name, product_category, unit_price, supplier_email]);
+            productsUpserted++;
+
+            // Insert transaction and transaction details
+            const transactionResult = await client.query(`
+                INSERT INTO transaction (date, customer_id, total_line_value)
+                VALUES ($1, $2, $3)
+                RETURNING transaction_id;
+            `, [date, customer_email, unit_price * quantity]);
+            const transactionId = transactionResult.rows[0].transaction_id;
+
+            await client.query(`
+                INSERT INTO transaction_details (transaction_id, product_sku, quantity, supplier_id)
+                VALUES ($1, $2, $3, (SELECT supplier_id FROM suppliers WHERE supplier_email = $4));
+            `, [transactionId, product_sku, quantity, supplier_email]);
+            linesInserted++;
+        }
+
+        console.log('Migration completed successfully.');
+        return { rows: rows.length, customersUpserted, suppliersUpserted, productsUpserted, linesInserted };    
+
+    
+
+  } catch (error) {
+    console.error("Migration error:", error);
+    throw error;
+  } finally {
+    client.release();
+  }
+}

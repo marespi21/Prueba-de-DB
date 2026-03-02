@@ -13,7 +13,10 @@ router.post('/migrate', async (req, res) =>{
         }
     )
     } catch (error) {
-        
+        res.status(500).json({
+            message: 'Migration failed',
+            error: error.message
+        })
     }
 })
 

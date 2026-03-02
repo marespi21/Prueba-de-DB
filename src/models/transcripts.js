@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const academicHistorySchema = mongoose.Schema(
+const costumerschema = mongoose.Schema(
     {
         "courseCode": String,
         "courseName": String,
