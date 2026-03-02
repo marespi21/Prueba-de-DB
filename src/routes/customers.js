@@ -1,48 +1,4 @@
 import { Router } from "express";
-import * as customerServices from "../services/migrateServices.js";
-
-const router = Router();
-
-router.get("/", async (req, res, next) => {
-try {
-const rows = await customerServices.listCustomers(req.query);
-res.json(rows);
-} catch (e) { next(e); }
-});
-
-router.get("/:email", async (req, res, next) => {
-try {
-const row = await customerServices.getCustomerByEmail(req.params.email);
-res.json(row);
-} catch (e) { next(e); }
-});
-
-router.post("/", async (req, res, next) => {
-try {
-const created = await customerServices.createCustomer(req.body);
-res.status(201).json(created);
-} catch (e) { next(e); }
-});
-
-router.put("/:email", async (req, res, next) => {
-try {
-const updated = await customerServices.updateCustomer(req.params.email, req.body);
-res.json(updated);
-} catch (e) { next(e); }
-});
-
-router.delete("/:email", async (req, res, next) => {
-try {
-await customerServices.deleteCustomer(req.params.email);
-res.status(204).send();
-} catch (e) { next(e); }
-});
-
-export default router;
-
--------------------------------------------------
-
-import { Router } from "express";
 import { getCourses, getCoursesByCode, updateCourseByCode } from "../services/coursesServices.js";
 
 const router = Router();
