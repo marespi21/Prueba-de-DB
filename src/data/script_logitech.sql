@@ -17,7 +17,8 @@ CREATE TABLE IF NOT EXISTS "products" (
 	"product_sku" TEXT PRIMARY KEY,
 	"product_name" TEXT NOT NULL unique,
 	"product_category" TEXT,
-	"unit_price" NUMERIC
+	"unit_price" NUMERIC,
+	"supplier_id" integer REFERENCES suppliers(supplier_id)
 	);
 
 CREATE TABLE IF NOT EXISTS "transaction" (

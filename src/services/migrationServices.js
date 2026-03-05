@@ -6,91 +6,6 @@ import { readFile } from "fs/promises";
 
 /* CREACIÓN DE TABLAS */
 
-export async function queryTables() {
-    const client = await pool.connect();
-
-    try {
-        await client.query("BEGIN");
-
-        // CUSTOMERS
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS "customers" (
-                "customer_id" TEXT PRIMARY KEY,
-                "customer_name" TEXT,
-                "customer_email" TEXT UNIQUE,
-                "customer_address" TEXT,
-                "customer_phone" TEXT
-            );
-        `);
-
-        // SUPPLIERS
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS "suppliers" (
-                "supplier_id" SERIAL PRIMARY KEY,
-                "supplier_name" TEXT,
-                "supplier_email" TEXT UNIQUE
-            );
-        `);
-
-        // PRODUCTS
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS "products" (
-                "product_sku" TEXT PRIMARY KEY,
-                "product_name" TEXT,
-                "product_category" TEXT,
-                "unit_price" NUMERIC,
-                "supplier_id" INT REFERENCES suppliers(supplier_id)
-            );
-        `);
-
-        // TRANSACTION
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS "transaction" (
-                "transaction_id" BIGINT PRIMARY KEY,
-                "date" DATE NOT NULL,
-                "customer_id" TEXT REFERENCES customers(customer_id),
-                "total_line_value" NUMERIC
-            );
-        `);
-
-        // TRANSACTION DETAILS
-        await client.query(`
-            CREATE TABLE IF NOT EXISTS "transaction_details" (
-                "transaction_detail_id" BIGSERIAL PRIMARY KEY,
-                "transaction_id" BIGINT REFERENCES transaction(transaction_id),
-                "product_sku" TEXT REFERENCES products(product_sku),
-                "quantity" INT
-            );
-        `);
-
-        // INDEXES
-        await client.query(`
-            CREATE INDEX IF NOT EXISTS "idx_txn_details_txn"
-            ON "transaction_details"("transaction_id");
-
-            CREATE INDEX IF NOT EXISTS "idx_txn_details_product"
-            ON "transaction_details"("product_sku");
-
-            CREATE INDEX IF NOT EXISTS "idx_transaction_date"
-            ON "transaction"("date");
-        `);
-
-        await client.query("COMMIT");
-
-        console.log("Tables created successfully");
-
-        return { message: "Tables created successfully" };
-
-    } catch (error) {
-
-        await client.query("ROLLBACK");
-        console.error("Error creating tables:", error);
-        throw error;
-
-    } finally {
-        client.release();
-    }
-}
 
 
 /* MIGRACIÓN DEL CSV */
@@ -111,7 +26,6 @@ export async function migration(clearBefore = false) {
             skip_empty_lines: true
         });
 
-        console.log(rows);
         
 
         let customersUpserted = 0;
@@ -139,18 +53,25 @@ export async function migration(clearBefore = false) {
 
             /* -------------------------
                CUSTOMER */
-            await client.query(`
-                INSERT INTO customers 
-                (customer_id, customer_name, customer_email, customer_address, customer_phone)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (customer_id) DO UPDATE SET
+               const customerResult = await client.query(`SeleCT * FROM customers WHERE customer_email = $1`, [customer_email]);
+               
+            /* if (!customerResult.rows.length) { */
+
+                const customer = await client.query(`
+                    INSERT INTO customers 
+                    (customer_name, customer_email, customer_address, customer_phone)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (customer_email) DO UPDATE SET
                     customer_name = EXCLUDED.customer_name,
                     customer_email = EXCLUDED.customer_email,
                     customer_address = EXCLUDED.customer_address,
-                    customer_phone = EXCLUDED.customer_phone;
-            `, [customer_id, customer_name, customer_email, customer_address, customer_phone]);
-
-            customersUpserted++;
+                    customer_phone = EXCLUDED.customer_phone
+                    returning customer_id;
+                    `, [customer_name, customer_email, customer_address, customer_phone]);
+                    
+                    customersUpserted++;
+               /*  }   */ 
+               
 
             /* SUPPLIER */
             await client.query(`
@@ -188,7 +109,7 @@ export async function migration(clearBefore = false) {
                 INSERT INTO transaction (date, customer_id, total_line_value)
                 VALUES ($1, $2, $3)
                 RETURNING transaction_id;
-            `, [date, customer_id, unit_price * quantity]);
+            `, [date, customer.rows[0].customer_id, unit_price * quantity]);
 
             const transactionId = transactionResult.rows[0].transaction_id;
 
