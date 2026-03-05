@@ -1,52 +1,40 @@
 CREATE TABLE IF NOT EXISTS "customers" (
-    "customer_id" TEXT PRIMARY KEY,
+    "customer_id" SERIAL PRIMARY KEY,
     "customer_name" TEXT,
-    "customer_email" TEXT,	
+    "customer_email" TEXT unique,	
     "customer_address" TEXT,
     "customer_phone" TEXT
     );
 
 
-CREATE TABLE IF NOT EXISTS "products" (
-	"product_sku" SERIAL NOT NULL UNIQUE,
-	"product_name" VARCHAR(100) NOT NULL,
-	"product_category" VARCHAR(100) NOT NULL,
-	"unit_price" NUMERIC(10,2) NOT NULL,
-	"insurance_id" INTEGER NOT NULL,
-	PRIMARY KEY("product_sku")
-);
-
-
 CREATE TABLE IF NOT EXISTS "suppliers" (
 	"supplier_id" SERIAL PRIMARY KEY,
-	"supplier_name" TEXT,
-	"supplier_email" TEXT
+	"supplier_name" TEXT NOT NULL unique,
+	"supplier_email" TEXT unique
 	);
 
 CREATE TABLE IF NOT EXISTS "products" (
 	"product_sku" TEXT PRIMARY KEY,
-	"product_name" TEXT,
+	"product_name" TEXT NOT NULL unique,
 	"product_category" TEXT,
-	"unit_price" NUMERIC,
-	"supplier_email" TEXT
+	"unit_price" NUMERIC
 	);
 
 CREATE TABLE IF NOT EXISTS "transaction" (
-	"transaction_id" BIGSERIAL PRIMARY KEY,
+	"transaction_id" BIGSERIAL PRIMARY KEY ,
 	"date" DATE NOT NULL,
-	"customer_id" TEXT REFERENCES customers(customer_email),
+	"customer_id" integer REFERENCES customers(customer_id),
 	"total_line_value" NUMERIC
 	);
+
 CREATE TABLE IF NOT EXISTS "transaction_details" (
 	"transaction_detail_id" BIGSERIAL PRIMARY KEY,
-	"transaction_id" BIGINT NOT NULL,
+	"transaction_id" BIGINT NOT NULL REFERENCES transaction(transaction_id),
 	"product_sku" TEXT REFERENCES products(product_sku),
 	"quantity" INT,
-	"supplier_id" NUMERIC
+	"supplier_id" integer REFERENCES suppliers(supplier_id)
 	);
 
-CREATE INDEX IF NOT EXISTS 
-idx_txn_details_txn ON "transaction_details"("transaction_id");
-CREATE INDEX IF NOT EXISTS idx_txn_details_date ON "transaction_details"("date");
+
 
 

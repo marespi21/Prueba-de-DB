@@ -1,6 +1,6 @@
 import express from "express";
 import migrateRouter from "./routes/migrate.js";
-import { connectMongoDB } from "./routes/customers.js";
+
 
 
 export const app = express();

@@ -16,10 +16,10 @@ export async function createTables() {
   try {
     await client.query("BEGIN");
     // Leer archivo SQL
-    const sqlPath = resolve(env.schemaSqlPath);
+    const sqlPath = resolve(env.filesql); //undefined
     const sql = await readFile(sqlPath, "utf-8"); 
 
-    // script to create table patients
+    // script to create table 
     await client.query(sql); // AQui se poner lo creado en sql
     await client.query("COMMIT"); // poner esto para finalizar mi script
     console.log("Tablas creadas correctamente");
